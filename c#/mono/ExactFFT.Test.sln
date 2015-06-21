@@ -1,0 +1,32 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExactFFT.Test", "ExactFFT.Test\ExactFFT.Test.csproj", "{4C58EDDD-998B-466A-A2F1-5CE812F98134}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DebugHelper", "DebugHelper\DebugHelper.csproj", "{9B45F6BD-B4DC-4CEF-985C-41D3D6D493E1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExactFFT", "ExactFFT\ExactFFT.csproj", "{E2B0EFC3-9AA7-44C7-84A3-CD8FA39426BA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x86 = Debug|x86
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4C58EDDD-998B-466A-A2F1-5CE812F98134}.Debug|x86.ActiveCfg = Debug|x86
+		{4C58EDDD-998B-466A-A2F1-5CE812F98134}.Debug|x86.Build.0 = Debug|x86
+		{4C58EDDD-998B-466A-A2F1-5CE812F98134}.Release|x86.ActiveCfg = Release|x86
+		{4C58EDDD-998B-466A-A2F1-5CE812F98134}.Release|x86.Build.0 = Release|x86
+		{9B45F6BD-B4DC-4CEF-985C-41D3D6D493E1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{9B45F6BD-B4DC-4CEF-985C-41D3D6D493E1}.Debug|x86.Build.0 = Debug|Any CPU
+		{9B45F6BD-B4DC-4CEF-985C-41D3D6D493E1}.Release|x86.ActiveCfg = Release|Any CPU
+		{9B45F6BD-B4DC-4CEF-985C-41D3D6D493E1}.Release|x86.Build.0 = Release|Any CPU
+		{E2B0EFC3-9AA7-44C7-84A3-CD8FA39426BA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E2B0EFC3-9AA7-44C7-84A3-CD8FA39426BA}.Debug|x86.Build.0 = Debug|Any CPU
+		{E2B0EFC3-9AA7-44C7-84A3-CD8FA39426BA}.Release|x86.ActiveCfg = Release|Any CPU
+		{E2B0EFC3-9AA7-44C7-84A3-CD8FA39426BA}.Release|x86.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(MonoDevelopProperties) = preSolution
+		StartupItem = ExactFFT.Test\ExactFFT.Test.csproj
+	EndGlobalSection
+EndGlobal

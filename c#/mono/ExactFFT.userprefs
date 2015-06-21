@@ -1,0 +1,13 @@
+﻿<Properties>
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
+  <MonoDevelop.Ide.Workbench ActiveDocument="x:\storage\ExactFFT\c#\ExactFFT\ExactFFT.cs">
+    <Files>
+      <File FileName="x:\storage\ExactFFT\c#\ExactFFT\ExactFFT.cs" Line="21" Column="21" />
+      <File FileName="..\DebugHelper\DebugHelper.cs" Line="1" Column="1" />
+    </Files>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore />
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+</Properties>
