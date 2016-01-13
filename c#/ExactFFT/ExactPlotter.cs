@@ -1,8 +1,8 @@
 ﻿/*----------------------------------------------------------------------+
  |  filename:   ExactPlotter.cs                                         |
  |----------------------------------------------------------------------|
- |  version:    8.00                                                    |
- |  revision:   25/11/2014  11:15                                       |
+ |  version:    8.30                                                    |
+ |  revision:   13/01/2016  21:27                                       |
  |  author:     Дробанов Артём Федорович (DrAF)                         |
  |  e-mail:     draf@mail.ru                                            |
  |  purpose:    Многопоточный "плоттер-водопад" для комплексного FFT    |
@@ -10,7 +10,6 @@
 
 using System;
 using System.Threading.Tasks;
-using DrAF.DSP;
 
 namespace DrAF.DSP
 {
@@ -48,7 +47,7 @@ namespace DrAF.DSP
         /// <param name="fftObj"> Объект FFT, для которого вызывается функция. </param>
         public static int GetPlotRowsCount(int FFT_S_Length, int FFT_S_Offset,
                                            out int remainArrayItemsLRCount,
-                                           ref ExactFFT.CFFT_Object fftObj)
+                                           ExactFFT.CFFT_Object fftObj)
         {
             int stepAreaLength_Real, nSteps, areaWithoutFFT_Real, intersectFFTArea_Real;
 
@@ -103,14 +102,14 @@ namespace DrAF.DSP
         /// <param name="fftObj"> Объект FFT, для которого вызывается функция. </param>
         public static int GetPlotRowsCount(double[] FFT_S, int FFT_S_Offset,
                                            out int remainArrayItemsLRCount,
-                                           ref ExactFFT.CFFT_Object fftObj)
+                                           ExactFFT.CFFT_Object fftObj)
         {
             if(FFT_S == null)
             {
                 throw new Exception("ExactPlotter::GetPlotRowsCount(): (FFT_S == null)");
             }
 
-            return GetPlotRowsCount(FFT_S.Length, FFT_S_Offset, out remainArrayItemsLRCount, ref fftObj);
+            return GetPlotRowsCount(FFT_S.Length, FFT_S_Offset, out remainArrayItemsLRCount, fftObj);
         }
         
         /// <summary>
@@ -135,7 +134,7 @@ namespace DrAF.DSP
                                          bool useNorm, bool direction, bool usePolyphase,
                                          out int remainArrayItemsLRCount,
                                          ExactFFT.CFFT_Object fftObj)
-        {            
+        {
             int plotRowsCount, frameOffset;
             double[][] FFT_T;
 
@@ -145,7 +144,7 @@ namespace DrAF.DSP
             }
 
             // Вычисляем количество строк сонограммы...
-            plotRowsCount = GetPlotRowsCount(FFT_S, FFT_S_Offset, out remainArrayItemsLRCount, ref fftObj);
+            plotRowsCount = GetPlotRowsCount(FFT_S, FFT_S_Offset, out remainArrayItemsLRCount, fftObj);
 
             // Обрабатываем все фреймы...
             FFT_T = new double[plotRowsCount][];
@@ -429,7 +428,6 @@ namespace DrAF.DSP
                                          bool harmReverse = false)
         {
             int plotRowsCount, plotColsCount;
-            double[] sourceRow, targetRow;
             double[][] target;
 
             if(sonogram == null)
@@ -467,8 +465,8 @@ namespace DrAF.DSP
             // Работаем по всем строкам сонограммы...
             Parallel.For(0, plotRowsCount, frame =>
             {
-                sourceRow = sonogram[frame];
-                targetRow = new double[(highHarmIdx - lowHarmIdx) + 1];
+                double[] sourceRow = sonogram[frame];
+                double[] targetRow = new double[(highHarmIdx - lowHarmIdx) + 1];
 
                 Array.Copy(sourceRow, lowHarmIdx, targetRow, 0, (highHarmIdx - lowHarmIdx) + 1);
                 if(harmReverse)
@@ -496,7 +494,7 @@ namespace DrAF.DSP
                                          int sampleRate)
         {
             // Выделяем один временной срез (выделяем вектор, привязанный к ОДНОЙ строке)...
-            return SubTime(sonogram, time, time, out timeIdx, out timeIdx, ref fftObj, sampleRate)[0];
+            return SubTime(sonogram, time, time, out timeIdx, out timeIdx, fftObj, sampleRate)[0];
         }
 
         /// <summary>
@@ -525,7 +523,7 @@ namespace DrAF.DSP
         /// <returns> Выделенный поддиапазон сонограммы. </returns>
         public static double[][] SubTime(double[][] sonogram, double startTime, double finishTime,
                                          out int startFrameIdx, out int finishFrameIdx,
-                                         ref ExactFFT.CFFT_Object fftObj,
+                                         ExactFFT.CFFT_Object fftObj,
                                          int sampleRate,
                                          bool harmReverse = false)
         {
@@ -551,7 +549,6 @@ namespace DrAF.DSP
                                          bool harmReverse = false)
         {            
             int plotRowsCount;
-            double[] sourceRow, targetRow;
             double[][] target;
 
             if(sonogram == null)
@@ -586,8 +583,8 @@ namespace DrAF.DSP
             // Работаем по всем строкам сонограммы...            
             Parallel.For(startFrameIdx, (finishFrameIdx + 1), frame =>
             {
-                sourceRow = sonogram[frame];
-                targetRow = new double[sourceRow.Length];
+                double[] sourceRow = sonogram[frame];
+                double[] targetRow = new double[sourceRow.Length];
                 Array.Copy(sourceRow, targetRow, sourceRow.Length);
 
                 if(harmReverse)
@@ -662,7 +659,7 @@ namespace DrAF.DSP
 
             if(sonogram == null)
             {
-                throw new Exception("ExactDopplerMath::TimeSlicesSum(): (sonogram == null)");
+                throw new Exception("ExactPlotter::TimeSlicesSum(): (sonogram == null)");
             }
 
             // Считываем количество строк, которые имеет сонограмма...
@@ -673,11 +670,11 @@ namespace DrAF.DSP
 
             // В векторе суммы столько элементов, сколько гармоник в сонограмме...
             summa = new double[plotColsCount];
-            Parallel.For(0, plotRowsCount, frame =>
+            for(int frame = 0; frame < plotRowsCount; frame++)
             {
                 timeSlice = TimeSlice(sonogram, frame);
                 VectorSum(summa, timeSlice);
-            });
+            }
 
             // Нормализуем результат (по количеству слагаемых в векторе)...
             div = (double)plotRowsCount;
@@ -702,7 +699,7 @@ namespace DrAF.DSP
 
             if(sonogram == null)
             {
-                throw new Exception("ExactDopplerMath::HarmSlicesSum(): (sonogram == null)");
+                throw new Exception("ExactPlotter::HarmSlicesSum(): (sonogram == null)");
             }
 
             // Считываем количество строк, которые имеет сонограмма...
@@ -713,11 +710,11 @@ namespace DrAF.DSP
             
             // В векторе суммы столько элементов, сколько фреймов в сонограмме...
             summa = new double[plotRowsCount];
-            Parallel.For(0, plotColsCount, harm =>
+            for(int harm = 0; harm < plotColsCount; harm++)
             {
                 harmSlice = HarmSlice(sonogram, harm);
                 VectorSum(summa, harmSlice);
-            });
+            }
 
             // Нормализуем результат (по количеству слагаемых в векторе)...
             div = (double)plotColsCount;
@@ -727,6 +724,6 @@ namespace DrAF.DSP
             });
 
             return summa;
-        }
+        }        
     }
 }

@@ -20,8 +20,8 @@ namespace DrAF.DSP
        private static void Main(string[] args)
        {
            int i, j, frameWidth, polyDiv2, windowStep, N, N2, depth;
-           double beta, ACH_Difference, sampFreq, trueFreq, exactFreq,
-                  exactFreqDiff;
+           double ACH_Difference, sampFreq, trueFreq, exactFreq, exactFreqDiff;
+           //double beta;
            double[] FFT_S, FFT_T, MagC, MagL, MagR, ACH, ArgC, ArgL, ArgR, PhaseLR;
            int FFT_S_Offset;
 
@@ -40,7 +40,7 @@ namespace DrAF.DSP
            // * КОНСТРУКТОР
            // ***************************************************
            frameWidth = 4096;
-           beta       = 28; // 28
+           //beta       = 28; // 28
            polyDiv2   = 1;
            windowStep = frameWidth / 3;
            isComplex = false;

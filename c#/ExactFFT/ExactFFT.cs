@@ -1,8 +1,8 @@
 ﻿/*----------------------------------------------------------------------+
  |  filename:   ExactFFT.cs                                             |
  |----------------------------------------------------------------------|
- |  version:    8.00                                                    |
- |  revision:   25/11/2014  17:43                                       |
+ |  version:    8.30                                                    |
+ |  revision:   13/01/2016  21:27                                       |
  |  author:     Дробанов Артём Федорович (DrAF)                         |
  |  e-mail:     draf@mail.ru                                            |
  |  purpose:    Комплексное FFT                                         |
@@ -11,6 +11,7 @@
 using System;
 using System.IO;
 using DrAF.Utilities;
+using System.Collections.Generic;
 
 namespace DrAF.DSP
 {
@@ -52,9 +53,9 @@ namespace DrAF.DSP
         {
             //-------------------------------------------------------------------------
             public int N;           // Количество точек FFT
-            public int NN;          // Кол-во чисел (re + im) FFT
+            public int NN;          // Кол-во чисел (Re/Im) FFT
             public int NPoly;       // Пересчитанное для полифазного FFT количество точек
-            public int NNPoly;      // Кол-во чисел (re + im) полифазного FFT
+            public int NNPoly;      // Кол-во чисел (Re/Im) полифазного FFT
             public double Beta;     // Формирующий коэффициент "Beta" окна Кайзера
             public CosTW CosTW;     // Тип косинусного взвешивающего окна (если нет - используется окно Кайзера)
             public int PolyDiv;     // Делитель "полифазности" FFT ("0" - обычное FFT)
@@ -65,6 +66,12 @@ namespace DrAF.DSP
             public int[] FFT_PP;    // Вектор изменения порядка... (для полифазного FFT)
             public double[] FFT_TW; // Взвешивающее окно
             //-------------------------------------------------------------------------
+            public long PlotterPcmQueuePlan;         // План плоттера на обработку (в семплах (Re/Im))
+            public object PlotterPcmQueuePlan__Sync; // Объект синхронизации
+            public double[] RemainArrayItemsLR;      // Остаток необработанных данных в исходном массиве (Re/Im)
+            public object RemainArrayItemsLR__Sync;  // Объект синхронизации
+            public int RemainArrayItemsLRCount;      // Остаток необработанных данных в исходном массиве (Re/Im)
+            public Queue<double[]> PlotterPcmQueue;  // Очередь блоков данных на обработку в плоттере
         }
 
         /// <summary>
@@ -439,9 +446,14 @@ namespace DrAF.DSP
             {
                 fill_FFT_TW_Cosine(fftObj); // Косинусное взвешивающее окно
             }
+                        
+            fftObj.RemainArrayItemsLR = new double[fftObj.NN - 2]; // Массив необработанных данных
+            fftObj.PlotterPcmQueuePlan__Sync = new object();       // Объект синхронизации
+            fftObj.RemainArrayItemsLR__Sync = new object();        // Объект синхронизации
+            fftObj.PlotterPcmQueue = new Queue<double[]>();        // Очередь семплов на обработку
 
             // Обрабатываем ситуацию со сбросом дампа...
-            if(IsDumpMode)
+            if (IsDumpMode)
             {
                 Directory.CreateDirectory(DumpName);
 
@@ -1318,6 +1330,26 @@ namespace DrAF.DSP
         }
 
         /// <summary>
+        /// Преобразование вещественного входа в комплексный
+        /// </summary>
+        /// <param name="real"> Вещественный вход. </param>
+        /// <param name="complexPart"> Выбор целевой части преобразования:
+        ///                            real <=> 0, img <=> 1. </param>
+        /// <returns> Комплексный выход. </returns>
+        public static float[] RealToComplex(this float[] real, int complexPart)
+        {
+            int i, j;
+            var complex = new float[real.Length << 1];
+            for (i = 0, j = 0; i < real.Length; i++, j += 2)
+            {
+                complex[j + ((complexPart + 0) % 2)] = real[i];
+                complex[j + ((complexPart + 1) % 2)] = 0;
+            }
+
+            return complex;
+        }
+
+        /// <summary>
         /// Преобразование комплексного входа в вещественный
         /// </summary>
         /// <param name="complex"> Комплексный вход. </param>
@@ -1334,6 +1366,104 @@ namespace DrAF.DSP
             }
 
             return real;
-        }                
+        }
+
+        /// <summary>
+        /// Добавление семплов в детектор на анализ
+        /// </summary>
+        /// <param name="samples"> Набор семплов в формате Re/Im, подлежащий анализу. </param>
+        /// <param name="db0Level"> Уровень, соотв. "0 dB". </param>
+        /// <param name="fftObj"> Объект FFT, для которого вызывается функция. </param>
+        /// <returns> Количество строк сонограммы, которое будет получено из данного блока PCM
+        /// (включая предыдущий, кешированный остаток). </returns>
+        public static int AddSamplesToProcessing(float[] samples, int db0Level, CFFT_Object fftObj)
+        {
+            int i, j, k;
+            int remainArrayItemsLRCount_current, plotRowsCountCurrent, plotterInputSamplesCount;
+            double[] plotterInputSamples;
+
+            // Проверка на пустой вход
+            if(samples == null)
+            {
+                throw new NullReferenceException("ExactFFT::AddSamplesToProcessing(): (samples == null)");
+            }
+
+            lock(fftObj.RemainArrayItemsLR__Sync)
+            {
+                // Проверка на состояние останова
+                if(fftObj.RemainArrayItemsLR == null)
+                {
+                    return -1;
+                }
+
+                // Вычисляем количество семплов, которые будут помещены в очередь для обработки
+                // (с учетом необработанного на предыдущем вызове остатка)...
+                plotterInputSamplesCount = samples.Length + fftObj.RemainArrayItemsLRCount;
+
+                //...их должно быть достаточно хотя бы для одной итерации FFT!
+                if(plotterInputSamplesCount < fftObj.NN)
+                {
+                    // Блок семплов не принят в обработку (их слишком мало для работы внутренней механики)!
+                    return -1;
+                }
+
+                // Вычисляем количество необработанных данных для текущей итерации...
+                plotRowsCountCurrent = ExactPlotter.GetPlotRowsCount(plotterInputSamplesCount, 0,
+                                                                     out remainArrayItemsLRCount_current,
+                                                                     fftObj);
+                //...их должно быть достаточно хотя бы для одной итерации FFT!
+                if(plotRowsCountCurrent < 1)
+                {
+                    // Блок семплов не принят в обработку (их слишком мало для работы внутренней механики)!
+                    return -1;
+                }
+
+                // ЕСЛИ БЛОК СЕМПЛОВ ПРИНЯТ В ОБРАБОТКУ...
+
+                // Фиксируем приращение плана на обработку для плоттера...
+                lock(fftObj.PlotterPcmQueuePlan__Sync)
+                {
+                    fftObj.PlotterPcmQueuePlan += plotterInputSamplesCount;
+                }
+
+                // Текущий вход формируем из двух компонент - остатка необработанных
+                // данных с предыдущего вызова, и актуального входа, приведенного
+                // к "double"-формату, пригодному для обработки посредством FFT...
+                plotterInputSamples = new double[plotterInputSamplesCount];
+
+                // Копирование данных в массив для обработки плоттером
+                // > НЕОБРАБОТАННЫЙ ДОВЕСОК
+                for(i = 0, j = 0; i < fftObj.RemainArrayItemsLRCount; i++, j++)
+                {
+                    plotterInputSamples[j] = fftObj.RemainArrayItemsLR[i];
+                }
+
+                // Копирование данных в массив для обработки плоттером
+                // > ПОСТУПИВШИЙ БЛОК PCM
+                for(i = 0; i < samples.Length; i++, j++)
+                {
+                    plotterInputSamples[j] = (double)samples[i] * db0Level;
+                }
+
+                // Сохраняем кол-во необработ. элементов в поступившем блоке PCM...
+                fftObj.RemainArrayItemsLRCount = remainArrayItemsLRCount_current;
+
+                //...а также сами эти элементы в специальном массиве...
+                for(i = 0, k = (plotterInputSamples.Length - fftObj.RemainArrayItemsLRCount);
+                    i < fftObj.RemainArrayItemsLRCount;
+                    i++, k++)
+                {
+                    fftObj.RemainArrayItemsLR[i] = plotterInputSamples[k];
+                }
+
+                // Добавляем данные в очередь на обработку...
+                lock(fftObj.PlotterPcmQueue)
+                {
+                    fftObj.PlotterPcmQueue.Enqueue(plotterInputSamples);
+                }
+            }
+
+            return plotRowsCountCurrent;
+        }
     }
 }
