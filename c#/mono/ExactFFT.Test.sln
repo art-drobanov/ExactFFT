@@ -1,6 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2012
+# SharpDevelop 5.1
+VisualStudioVersion = 12.0.20827.3
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExactFFT.Test", "ExactFFT.Test\ExactFFT.Test.csproj", "{4C58EDDD-998B-466A-A2F1-5CE812F98134}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DebugHelper", "DebugHelper\DebugHelper.csproj", "{9B45F6BD-B4DC-4CEF-985C-41D3D6D493E1}"

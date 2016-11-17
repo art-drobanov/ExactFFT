@@ -1,8 +1,8 @@
 ﻿/*----------------------------------------------------------------------+
  |  filename:   ExactPlotter.cs                                         |
  |----------------------------------------------------------------------|
- |  version:    8.30                                                    |
- |  revision:   13/01/2016  21:27                                       |
+ |  version:    8.40                                                    |
+ |  revision:   17.11.2016  16:32                                       |
  |  author:     Дробанов Артём Федорович (DrAF)                         |
  |  e-mail:     draf@mail.ru                                            |
  |  purpose:    Многопоточный "плоттер-водопад" для комплексного FFT    |
@@ -16,7 +16,7 @@ namespace DrAF.DSP
     /// <summary>
     /// Многопоточный "плоттер-водопад" для комплексного FFT
     /// </summary>
-    public class ExactPlotter
+    public static class ExactPlotter
     {
         /// <summary>
         /// Результат разбора выходных данных CFFT
@@ -214,6 +214,50 @@ namespace DrAF.DSP
         }
 
         /// <summary>
+        /// Извлечение данных магнитуд из комплексной сонограммы (L+R)
+        /// </summary>
+        /// <param name="FFT_T"> Выходной набор векторов коэффициентов. </param>
+        /// <param name="usePolyphase"> Использовать полифазное FFT? </param>
+        /// <param name="fftObj"> Объект FFT, для которого вызывается функция. </param>
+        /// <returns> Результат разбора выходных данных CFFT. </returns>
+        public static CFFT_ExploreResult ExploreMag(double[][] FFT_T, bool usePolyphase,
+                                                    ExactFFT.CFFT_Object fftObj)
+        {
+            int plotRowsCount;
+            CFFT_ExploreResult res;
+            res = new CFFT_ExploreResult();
+
+            if (FFT_T == null)
+            {
+                throw new Exception("ExactPlotter::Explore(): (FFT_T == null)");
+            }
+
+            // Считываем количество строк, которые имеет сонограмма...
+            plotRowsCount = FFT_T.Length;
+
+            // Подготавливаем выходные массивы...
+            res.MagL = new double[plotRowsCount][];
+            res.MagR = new double[plotRowsCount][];
+                       
+            // Работаем по всем строкам сонограммы...
+            Parallel.For(0, plotRowsCount, frame =>
+            {
+                // Количество гармоник в два раза меньше размера кадра FFT
+                res.MagL[frame] = new double[fftObj.N >> 1];
+                res.MagR[frame] = new double[fftObj.N >> 1];
+
+                // Извлечение данных FFT из комплексной сонограммы
+                ExactFFT.CFFT_Explore(FFT_T[frame],
+                                      res.MagL[frame], res.MagR[frame],
+                                      null, null, null, null,
+                                      usePolyphase,
+                                      fftObj);
+            });
+
+            return res;
+        }
+
+        /// <summary>
         /// Исследование результатов комплексного FFT (идентично CFFT из MathCAD)
         /// </summary>
         /// <param name="FFT_T"> Выходной набор векторов коэффициентов. </param>        
@@ -260,7 +304,7 @@ namespace DrAF.DSP
         }
 
         /// <summary>
-        /// Исследование результатов комплексного FFT (идентично CFFT из MathCAD)
+        /// Извлечение магнитуд из результатов комплексного FFT (идентично CFFT из MathCAD)
         /// </summary>
         /// <param name="FFT_T"> Выходной набор векторов коэффициентов. </param>
         /// <param name="usePolyphase"> Использовать полифазное FFT? </param>
@@ -640,7 +684,7 @@ namespace DrAF.DSP
                 throw new Exception("ExactPlotter::VectorSum(): (summa.Length != vector.Length)");
             }
 
-            for(i = 0; i < vector.Length; i++)
+            for(i = 0; i < vector.Length; ++i)
             {
                 summa[i] += vector[i];
             }
@@ -710,7 +754,7 @@ namespace DrAF.DSP
             
             // В векторе суммы столько элементов, сколько фреймов в сонограмме...
             summa = new double[plotRowsCount];
-            for(int harm = 0; harm < plotColsCount; harm++)
+            for(int harm = 0; harm < plotColsCount; ++harm)
             {
                 harmSlice = HarmSlice(sonogram, harm);
                 VectorSum(summa, harmSlice);

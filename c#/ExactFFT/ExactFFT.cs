@@ -1,8 +1,8 @@
 ﻿/*----------------------------------------------------------------------+
  |  filename:   ExactFFT.cs                                             |
  |----------------------------------------------------------------------|
- |  version:    8.30                                                    |
- |  revision:   13/01/2016  21:27                                       |
+ |  version:    8.40                                                    |
+ |  revision:   17.11.2016  16:32                                       |
  |  author:     Дробанов Артём Федорович (DrAF)                         |
  |  e-mail:     draf@mail.ru                                            |
  |  purpose:    Комплексное FFT                                         |
@@ -52,24 +52,24 @@ namespace DrAF.DSP
         public class CFFT_Object
         {
             //-------------------------------------------------------------------------
-            public int N;           // Количество точек FFT
-            public int NN;          // Кол-во чисел (Re/Im) FFT
-            public int NPoly;       // Пересчитанное для полифазного FFT количество точек
-            public int NNPoly;      // Кол-во чисел (Re/Im) полифазного FFT
-            public double Beta;     // Формирующий коэффициент "Beta" окна Кайзера
-            public CosTW CosTW;     // Тип косинусного взвешивающего окна (если нет - используется окно Кайзера)
-            public int PolyDiv;     // Делитель "полифазности" FFT ("0" - обычное FFT)
-            public int WindowStep;  // Шаг окна FFT
-            public bool IsComplex;  // Используется комплексный вход? (бывает COMPLEX и L+R)
+            public int N;                   // Количество точек FFT
+            public int NN;                  // Кол-во чисел (Re/Im) FFT
+            public int NPoly;               // Пересчитанное для полифазного FFT количество точек
+            public int NNPoly;              // Кол-во чисел (Re/Im) полифазного FFT
+            public double KaiserBeta;       // Формирующий коэффициент "Beta" окна Кайзера
+            public TaperWindow TaperWindow; // Тип косинусного взвешивающего окна (если нет - используется окно Кайзера)
+            public int PolyDiv;             // Делитель "полифазности" FFT ("0" - обычное FFT)
+            public int WindowStep;          // Шаг окна FFT
+            public bool IsComplex;          // Используется комплексный вход? (бывает COMPLEX и L+R)
             //-------------------------------------------------------------------------
             public int[] FFT_P;     // Вектор изменения порядка следования данных перед FFT
             public int[] FFT_PP;    // Вектор изменения порядка... (для полифазного FFT)
             public double[] FFT_TW; // Взвешивающее окно
             //-------------------------------------------------------------------------
             public long PlotterPcmQueuePlan;         // План плоттера на обработку (в семплах (Re/Im))
-            public object PlotterPcmQueuePlan__Sync; // Объект синхронизации
+            public object PlotterPcmQueuePlan__SyncRoot; // Объект синхронизации
             public double[] RemainArrayItemsLR;      // Остаток необработанных данных в исходном массиве (Re/Im)
-            public object RemainArrayItemsLR__Sync;  // Объект синхронизации
+            public object RemainArrayItemsLR__SyncRoot;  // Объект синхронизации
             public int RemainArrayItemsLRCount;      // Остаток необработанных данных в исходном массиве (Re/Im)
             public Queue<double[]> PlotterPcmQueue;  // Очередь блоков данных на обработку в плоттере
         }
@@ -238,9 +238,10 @@ namespace DrAF.DSP
         /// Типы взвешивающих окон FFT
         /// </summary>
         /// Характеристики окон: PS - "Peak Sidelobe" (наивысший боковой лепесток, дБ)        
-        public enum CosTW
+        public enum TaperWindow
         {
             NONE,
+            KAISER,
             RECTANGULAR_13dbPS,
             HANN_31dbPS,
             HAMMING_43dbPS,
@@ -271,24 +272,24 @@ namespace DrAF.DSP
             double a0, a1, a2, a3, ad;
 
             // Характеристики окон: PS - "Peak Sidelobe" (наивысший боковой лепесток, дБ)
-            switch(fftObj.CosTW)
+            switch(fftObj.TaperWindow)
             {                
-                case CosTW.RECTANGULAR_13dbPS:         { a0 = 1.0;       a1 = 0;         a2 = 0;         a3 = 0;         ad = 1.0;     break; }
-                case CosTW.HANN_31dbPS:                { a0 = 1.0;       a1 = 1.0;       a2 = 0;         a3 = 0;         ad = 2;       break; }
-                case CosTW.HAMMING_43dbPS:             { a0 = 0.54;      a1 = 0.46;      a2 = 0;         a3 = 0;         ad = 1.0;     break; }
-                case CosTW.MAX_ROLLOFF_3_TERM_46dbPS:  { a0 = 0.375;     a1 = 0.5;       a2 = 0.125;     a3 = 0;         ad = 1.0;     break; }
-                case CosTW.BLACKMAN_58dbPS:            { a0 = 0.42;      a1 = 0.5;       a2 = 0.08;      a3 = 0;         ad = 1.0;     break; }
-                case CosTW.COMPROMISE_3_TERM_64dbPS:   { a0 = 0.40897;   a1 = 0.5;       a2 = 0.09103;   a3 = 0;         ad = 1.0;     break; }
-                case CosTW.EXACT_BLACKMAN_68dbPS:      { a0 = 7938.0;    a1 = 9240.0;    a2 = 1430.0;    a3 = 0;         ad = 18608.0; break; }
-                case CosTW.MIN_SIDELOBE_3_TERM_71dbPS: { a0 = 0.4243801; a1 = 0.4973406; a2 = 0.0782793; a3 = 0;         ad = 1.0;     break; }
-                case CosTW.MAX_ROLLOFF_4_TERM_60dbPS:  { a0 = 10.0;      a1 = 15.0;      a2 = 6.0;       a3 = 1;         ad = 32.0;    break; }
-                case CosTW.COMPROMISE1_4_TERM_82dbPS:  { a0 = 0.338946;  a1 = 0.481973;  a2 = 0.161054;  a3 = 0.018027;  ad = 1.0;     break; }
-                case CosTW.COMPROMISE2_4_TERM_93dbPS:  { a0 = 0.355768;  a1 = 0.487396;  a2 = 0.144232;  a3 = 0.012604;  ad = 1.0;     break; }
+                case TaperWindow.RECTANGULAR_13dbPS:         { a0 = 1.0;       a1 = 0;         a2 = 0;         a3 = 0;         ad = 1.0;     break; }
+                case TaperWindow.HANN_31dbPS:                { a0 = 1.0;       a1 = 1.0;       a2 = 0;         a3 = 0;         ad = 2;       break; }
+                case TaperWindow.HAMMING_43dbPS:             { a0 = 0.54;      a1 = 0.46;      a2 = 0;         a3 = 0;         ad = 1.0;     break; }
+                case TaperWindow.MAX_ROLLOFF_3_TERM_46dbPS:  { a0 = 0.375;     a1 = 0.5;       a2 = 0.125;     a3 = 0;         ad = 1.0;     break; }
+                case TaperWindow.BLACKMAN_58dbPS:            { a0 = 0.42;      a1 = 0.5;       a2 = 0.08;      a3 = 0;         ad = 1.0;     break; }
+                case TaperWindow.COMPROMISE_3_TERM_64dbPS:   { a0 = 0.40897;   a1 = 0.5;       a2 = 0.09103;   a3 = 0;         ad = 1.0;     break; }
+                case TaperWindow.EXACT_BLACKMAN_68dbPS:      { a0 = 7938.0;    a1 = 9240.0;    a2 = 1430.0;    a3 = 0;         ad = 18608.0; break; }
+                case TaperWindow.MIN_SIDELOBE_3_TERM_71dbPS: { a0 = 0.4243801; a1 = 0.4973406; a2 = 0.0782793; a3 = 0;         ad = 1.0;     break; }
+                case TaperWindow.MAX_ROLLOFF_4_TERM_60dbPS:  { a0 = 10.0;      a1 = 15.0;      a2 = 6.0;       a3 = 1;         ad = 32.0;    break; }
+                case TaperWindow.COMPROMISE1_4_TERM_82dbPS:  { a0 = 0.338946;  a1 = 0.481973;  a2 = 0.161054;  a3 = 0.018027;  ad = 1.0;     break; }
+                case TaperWindow.COMPROMISE2_4_TERM_93dbPS:  { a0 = 0.355768;  a1 = 0.487396;  a2 = 0.144232;  a3 = 0.012604;  ad = 1.0;     break; }
                 default:
-                case CosTW.BLACKMAN_HARRIS_92dbPS:     { a0 = 0.35875;   a1 = 0.48829;   a2 = 0.14128;   a3 = 0.01168;   ad = 1.0;     break; }
-                case CosTW.NUTTALL_93dbPS:             { a0 = 0.355768;  a1 = 0.487396;  a2 = 0.144232;  a3 = 0.012604;  ad = 1.0;     break; }
-                case CosTW.BLACKMAN_NUTTALL_98dbPS:    { a0 = 0.3635819; a1 = 0.4891775; a2 = 0.1365995; a3 = 0.0106411; ad = 1.0;     break; }
-                case CosTW.ROSENFIELD:                 { a0 = 0.762;     a1 = 1.0;       a2 = 0.238;     a3 = 0;         ad = a0;      break; }
+                case TaperWindow.BLACKMAN_HARRIS_92dbPS:     { a0 = 0.35875;   a1 = 0.48829;   a2 = 0.14128;   a3 = 0.01168;   ad = 1.0;     break; }
+                case TaperWindow.NUTTALL_93dbPS:             { a0 = 0.355768;  a1 = 0.487396;  a2 = 0.144232;  a3 = 0.012604;  ad = 1.0;     break; }
+                case TaperWindow.BLACKMAN_NUTTALL_98dbPS:    { a0 = 0.3635819; a1 = 0.4891775; a2 = 0.1365995; a3 = 0.0106411; ad = 1.0;     break; }
+                case TaperWindow.ROSENFIELD:                 { a0 = 0.762;     a1 = 1.0;       a2 = 0.238;     a3 = 0;         ad = a0;      break; }
             }
 
             // Заполняем взвешивающее окно коэффициентами...
@@ -353,13 +354,13 @@ namespace DrAF.DSP
             fftObj.FFT_TW = new double[fftObj.NN];
 
             // Нормирующий коэффициент окна Кайзера
-            norm = BesselI0(fftObj.Beta);
+            norm = BesselI0(fftObj.KaiserBeta);
 
             // Заполняем взвешивающее окно...
             for(i = 1; i <= (fftObj.N >> 1); ++i)
             {
                 // arg = Beta * sqrt(1-(((2*(i-1))/(N-1))-1)^2);
-                arg = fftObj.Beta *
+                arg = fftObj.KaiserBeta *
                                     Math.Sqrt(
                                                1 - Math.Pow(
                                                              (
@@ -367,7 +368,7 @@ namespace DrAF.DSP
                                                               /
                                                                 (double)(fftObj.N - 1)
                                                              ) - 1
-                                                        , 2)
+                                                         , 2)
                                               );
                 
                 w = BesselI0(arg) / norm;
@@ -390,7 +391,7 @@ namespace DrAF.DSP
             // Размер окна не может быть меньше предельно-допустимого!
             if((fftObj.N     < MIN_FRAME_WIDTH) ||
                (fftObj.NPoly < MIN_FRAME_WIDTH) ||
-               (fftObj.Beta  > MAX_KAISER_BETA))
+               (fftObj.KaiserBeta  > MAX_KAISER_BETA))
             {
                 return false;
             }
@@ -413,12 +414,12 @@ namespace DrAF.DSP
         /// Фабрика объектов FFT
         /// </summary>
         /// <param name="frameWidth"> Размер кадра. </param>
-        /// <param name="cosTW"> Тип косинусного взвешивающего окна (если нет - используется окно Кайзера). </param>
-        /// <param name="beta"> Формирующий коэффициент окна Кайзера. </param>
+        /// <param name="taperWindow"> Тип косинусного взвешивающего окна (если нет - используется окно Кайзера). </param>
+        /// <param name="kaiserBeta"> Формирующий коэффициент окна Кайзера. </param>
         /// <param name="polyDiv2"> Уровень полифазности как степень двойки. </param>
         /// <param name="windowStep"> Шаг окна FFT. </param>
         /// <param name="isComplex"> Используется комплексный вход? (бывает COMPLEX и L+R). </param>
-        public static CFFT_Object CFFT_Init(int frameWidth, CosTW cosTW, double beta, int polyDiv2,
+        public static CFFT_Object CFFT_Init(int frameWidth, TaperWindow taperWindow, double kaiserBeta, int polyDiv2,
                                             int windowStep, bool isComplex)
         {
             // Объект-результат
@@ -429,8 +430,8 @@ namespace DrAF.DSP
             fftObj.NN = fftObj.N << 1;              // Кол-во точек (re + im)
             fftObj.NPoly = fftObj.N >> polyDiv2;    // Размер полифазного кадра FFT
             fftObj.NNPoly = fftObj.NPoly << 1;      // Кол-во точек полифазного FFT
-            fftObj.CosTW = cosTW;                   // Тип косинусного взвешивающего окна
-            fftObj.Beta = beta;                     // Форм-ий коэфф. окна Кайзера
+            fftObj.TaperWindow = taperWindow;       // Тип косинусного взвешивающего окна
+            fftObj.KaiserBeta = kaiserBeta;         // Форм-ий коэфф. окна Кайзера
             fftObj.PolyDiv = 1 << polyDiv2;         // Полифазный делитель
             fftObj.WindowStep = windowStep;         // Шаг окна FFT
             fftObj.IsComplex = isComplex;           // Используется комплексный вход? (бывает COMPLEX и L+R)
@@ -438,7 +439,7 @@ namespace DrAF.DSP
             fill_FFT_P(fftObj);  // Вектор изменения порядка след. данных перед FFT
             fill_FFT_PP(fftObj); // Вектор изменения порядка... (для полифазного FFT)
 
-            if(fftObj.CosTW == CosTW.NONE) //...если не задано взвешивающее окно косинусного типа
+            if(fftObj.TaperWindow == TaperWindow.KAISER) //...если не задано взвешивающее окно косинусного типа
             {
                 fill_FFT_TW_Kaiser(fftObj); // Взвешивающее окно Кайзера
 
@@ -448,12 +449,12 @@ namespace DrAF.DSP
             }
                         
             fftObj.RemainArrayItemsLR = new double[fftObj.NN - 2]; // Массив необработанных данных
-            fftObj.PlotterPcmQueuePlan__Sync = new object();       // Объект синхронизации
-            fftObj.RemainArrayItemsLR__Sync = new object();        // Объект синхронизации
+            fftObj.PlotterPcmQueuePlan__SyncRoot = new object();   // Объект синхронизации
+            fftObj.RemainArrayItemsLR__SyncRoot = new object();    // Объект синхронизации
             fftObj.PlotterPcmQueue = new Queue<double[]>();        // Очередь семплов на обработку
 
             // Обрабатываем ситуацию со сбросом дампа...
-            if (IsDumpMode)
+            if(IsDumpMode)
             {
                 Directory.CreateDirectory(DumpName);
 
@@ -477,30 +478,30 @@ namespace DrAF.DSP
         /// Фабрика объектов FFT
         /// </summary>
         /// <param name="frameWidth"> Размер кадра. </param>
-        /// <param name="cosTW"> Тип косинусного взвешивающего окна. </param>
+        /// <param name="taperWindow"> Тип взвешивающего окна. </param>
         /// <param name="polyDiv2"> Уровень полифазности как степень двойки. </param>
         /// <param name="windowStep"> Шаг окна FFT. </param>
         /// <param name="isComplex"> Используется комплексный вход? (бывает COMPLEX и L+R). </param>
-        public static CFFT_Object CFFT_Constructor_Cosine(int frameWidth, CosTW cosTW, int polyDiv2,
+        public static CFFT_Object CFFT_Constructor_Cosine(int frameWidth, TaperWindow taperWindow, int polyDiv2,
                                                           int windowStep, bool isComplex)
         {
             // Возвращаем объект "FFT"
-            return CFFT_Init(frameWidth, cosTW, MAX_KAISER_BETA, polyDiv2, windowStep, isComplex);
+            return CFFT_Init(frameWidth, taperWindow, MAX_KAISER_BETA, polyDiv2, windowStep, isComplex);
         }
     
         /// <summary>
         /// Фабрика объектов FFT
         /// </summary>
         /// <param name="frameWidth"> Размер кадра. </param>
-        /// <param name="beta"> Формирующий коэффициент окна Кайзера. </param>
+        /// <param name="kaiserBeta"> Формирующий коэффициент окна Кайзера. </param>
         /// <param name="polyDiv2"> Уровень полифазности как степень двойки. </param>
         /// <param name="windowStep"> Шаг окна FFT. </param>
         /// <param name="isComplex"> Используется комплексный вход? (бывает COMPLEX и L+R). </param>
-        public static CFFT_Object CFFT_Constructor_Kaiser(int frameWidth, double beta, int polyDiv2,
+        public static CFFT_Object CFFT_Constructor_Kaiser(int frameWidth, double kaiserBeta, int polyDiv2,
                                                           int windowStep, bool isComplex)
         {
             // Возвращаем объект "FFT"
-            return CFFT_Init(frameWidth, CosTW.NONE, beta, polyDiv2, windowStep, isComplex);
+            return CFFT_Init(frameWidth, TaperWindow.NONE, kaiserBeta, polyDiv2, windowStep, isComplex);
         }
 
         /// <summary>
@@ -581,20 +582,20 @@ namespace DrAF.DSP
             }
 
             // FFT Routine
-            isign  = direction ? -1 : 1;
-            mmax   = 2;
+            isign = direction ? -1 : 1;
+            mmax = 2;
             isteps = 1;
             NN = usePolyphase ? fftObj.NNPoly : fftObj.NN;
-            while(NN > mmax)
+            while (NN > mmax)
             {
                 isteps++;
-                istep   = mmax << 1;
-                theta   = isign * ((2 * M_PI) / mmax);
+                istep = mmax << 1;
+                theta = isign * ((2 * M_PI) / mmax);
                 sin05Th = Math.Sin(0.5 * theta);
                 wpr = -(2.0 * (sin05Th * sin05Th));
                 wpi = Math.Sin(theta);
-                wr  = 1.0;
-                wi  = 0.0;
+                wr = 1.0;
+                wi = 0.0;
 
                 for(ii = 1; ii <= (mmax >> 1); ++ii)
                 {
@@ -605,8 +606,8 @@ namespace DrAF.DSP
                         j = i + mmax;
                         tempr = wr * FFT_T[j - 1] - wi * FFT_T[j];
                         tempi = wi * FFT_T[j - 1] + wr * FFT_T[j];
-                        FFT_T[j - 1]  = FFT_T[i - 1] - tempr;
-                        FFT_T[j - 0]  = FFT_T[i - 0] - tempi;
+                        FFT_T[j - 1] = FFT_T[i - 1] - tempr;
+                        FFT_T[j - 0] = FFT_T[i - 0] - tempi;
                         FFT_T[i - 1] += tempr;
                         FFT_T[i - 0] += tempi;
                     }
@@ -1388,7 +1389,7 @@ namespace DrAF.DSP
                 throw new NullReferenceException("ExactFFT::AddSamplesToProcessing(): (samples == null)");
             }
 
-            lock(fftObj.RemainArrayItemsLR__Sync)
+            lock(fftObj.RemainArrayItemsLR__SyncRoot)
             {
                 // Проверка на состояние останова
                 if(fftObj.RemainArrayItemsLR == null)
@@ -1421,7 +1422,7 @@ namespace DrAF.DSP
                 // ЕСЛИ БЛОК СЕМПЛОВ ПРИНЯТ В ОБРАБОТКУ...
 
                 // Фиксируем приращение плана на обработку для плоттера...
-                lock(fftObj.PlotterPcmQueuePlan__Sync)
+                lock(fftObj.PlotterPcmQueuePlan__SyncRoot)
                 {
                     fftObj.PlotterPcmQueuePlan += plotterInputSamplesCount;
                 }
@@ -1433,14 +1434,14 @@ namespace DrAF.DSP
 
                 // Копирование данных в массив для обработки плоттером
                 // > НЕОБРАБОТАННЫЙ ДОВЕСОК
-                for(i = 0, j = 0; i < fftObj.RemainArrayItemsLRCount; i++, j++)
+                for(i = 0, j = 0; i < fftObj.RemainArrayItemsLRCount; ++i, ++j)
                 {
                     plotterInputSamples[j] = fftObj.RemainArrayItemsLR[i];
                 }
 
                 // Копирование данных в массив для обработки плоттером
                 // > ПОСТУПИВШИЙ БЛОК PCM
-                for(i = 0; i < samples.Length; i++, j++)
+                for(i = 0; i < samples.Length; ++i, ++j)
                 {
                     plotterInputSamples[j] = (double)samples[i] * db0Level;
                 }
@@ -1451,7 +1452,7 @@ namespace DrAF.DSP
                 //...а также сами эти элементы в специальном массиве...
                 for(i = 0, k = (plotterInputSamples.Length - fftObj.RemainArrayItemsLRCount);
                     i < fftObj.RemainArrayItemsLRCount;
-                    i++, k++)
+                    ++i, ++k)
                 {
                     fftObj.RemainArrayItemsLR[i] = plotterInputSamples[k];
                 }
